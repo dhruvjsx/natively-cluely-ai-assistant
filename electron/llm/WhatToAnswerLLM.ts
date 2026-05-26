@@ -155,11 +155,20 @@ ANSWER SHAPE: ${intentResult.answerShape}
                 }
             }
 
+            let profileHistoryAllowed = true;
+            try {
+                const { SettingsManager } = require('../services/SettingsManager');
+                const policy = SettingsManager.getInstance().get('providerDataScopes');
+                profileHistoryAllowed = policy?.profile_history !== false;
+            } catch (_scopeErr: any) {
+                profileHistoryAllowed = true;
+            }
+
             const assemblerBudget = 2000
                 + estimateTokens(intentContext || '')
                 + estimateTokens(modeContextBlock)
                 + estimateTokens(screenContext?.ocrText || '')
-                + estimateTokens((temporalContext?.previousResponses || []).join('\n'));
+                + estimateTokens(profileHistoryAllowed ? (temporalContext?.previousResponses || []).join('\n') : '');
             const reservedForFit =
                 (this.llmHelper.getCapabilities().outputBudgetTokens || 2000)
                 + assemblerBudget;
@@ -199,7 +208,9 @@ ANSWER SHAPE: ${intentResult.answerShape}
                 transcript: workingTranscript,
                 modeTemplateType: 'active',
                 screenContext,
-                priorResponses: temporalContext?.hasRecentResponses ? temporalContext.previousResponses : undefined,
+                priorResponses: profileHistoryAllowed && temporalContext?.hasRecentResponses
+                    ? temporalContext.previousResponses
+                    : undefined,
                 intentContext,
                 retrievedModeContext: modeContextBlock || undefined,
                 tokenBudget: Math.max(1000, assemblerBudget),
@@ -218,7 +229,11 @@ ANSWER SHAPE: ${intentResult.answerShape}
             const streamedBuffer: string[] = [];
             const packetScopes: ProviderDataScope[] = [];
             if (modeContextBlock) packetScopes.push('reference_files');
-            if (temporalContext?.hasRecentResponses && temporalContext.previousResponses.length > 0) packetScopes.push('profile_history');
+            if (
+                profileHistoryAllowed &&
+                temporalContext?.hasRecentResponses &&
+                temporalContext.previousResponses.length > 0
+            ) packetScopes.push('profile_history');
             for await (const token of this.llmHelper.streamChat(packet.userMessage, imagePaths, undefined, finalPromptOverride, true, true, packetScopes)) {
                 if (MEASURE) {
                     const now = performance.now();

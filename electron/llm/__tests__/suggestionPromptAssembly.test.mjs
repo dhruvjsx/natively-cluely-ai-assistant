@@ -194,6 +194,12 @@ test('WhatToAnswerLLM sends dynamic action prompt instruction as user content', 
   assert.doesNotMatch(systemPromptOverride, /DYNAMIC_ACTION_PROMPT_INSTRUCTION_SENTINEL/);
 });
 
+test('WhatToAnswerLLM gates prior responses on profile_history scope policy', () => {
+  assert.match(whatToAnswerSource, /profileHistoryAllowed = policy\?\.profile_history !== false/);
+  assert.match(whatToAnswerSource, /priorResponses: profileHistoryAllowed && temporalContext\?\.hasRecentResponses/);
+  assert.match(whatToAnswerSource, /if \(\s*profileHistoryAllowed[\s\S]*packetScopes\.push\('profile_history'\)/);
+});
+
 test('WhatToAnswerLLM assembles runtime intent, prior responses, and screen context as user content', async () => {
   const { WhatToAnswerLLM } = require(distWhatToAnswerPath);
   const calls = [];
